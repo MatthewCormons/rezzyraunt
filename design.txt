@@ -1,0 +1,110 @@
+Flow of Control:
+    Website
+       |
+       V
+    ExpressJS
+       |
+       V
+    Input Formatting
+       |
+       V
+    Business Logic -> Reservation Payment Handling -> Payment Authentication Service (e.g. Visa)
+       |                           |
+       V                           V
+    DB Logic
+       |
+       V
+    MongoDB
+        -Restaurants available (with capacity and hours of operation)
+        -For each restaurant the following tables will exist:
+            -Current Reservations
+            -Past Reservations
+
+ExpressJS Interface:
+    -Command Page (Customers)
+        -where all customer commands to the system are issued from
+            -e.g. making a reservation
+        -all data accessible for selected restaurant availability will be shown by 
+         default
+        -user will enter the name of the restaurant at the top of the page thus
+         causing the rest of the page to become populated
+            -if no such restaurants exists, an error will be displayed
+    -Command Page (Staff)
+        -where all staff commands to the system are issued from
+            -e.g. indicating that a reservation has shown up.
+    -404 Page
+
+Input Formatting Interface:
+    -Submit Reservation. (Customer)
+    -See free time slots. (Customer)
+    -Cancel a reservation. (Customer)
+    -Re-schedule a reservation. (Customer)
+    -Register a guest when guest shows up. (Staff)
+    -Register a no show. (Staff)
+
+Business Logic Interface:
+    -Submit Reservation.
+        -Returns success, fail, name/reservation time already used, or time 
+         slot full.
+    -See free time slots.
+        -Returns an array of objects that has the number of seats available for 
+         1.5 hours starting every half hour.
+    -Cancel a Reservation.
+        -Returns success, fail, or reservation does not exist.
+    -Re-schedule a reservation.
+        -Returns success, fail, time slot full, name/reservation time already used, 
+         or reservation does not exist.
+    -Seats available for reservation.
+        -Returns an integer representing the number of tables available at a given
+         time.
+    -Valid time for reservation.
+        -Returns whether the time selected for a reservation is during the hours
+         of operation of the restaurant in question.
+    -Does reservation exist.
+        -Returns whether the reservation exists or not.
+    -Register when a guest shows up.
+        -Makes the necessary refund and moves the reservation to the past 
+         reservation table.
+    -Register a no show.
+        -Moves the reservation to the past reservation table.
+    -Calculate refund.
+        -Calculates the amount of refund to give to a user based on whether the
+         user showed up or at what time the user cancelled.
+
+Reservation Payment Handling Interface:
+    -Make payment.
+        -Charges a specified amount to a user.
+    -Make refund.
+        -Refunds a specified amount to user.
+
+DB Logic Interface:
+    -External (For use with the API):
+        -Insert a Reservation.
+        -Delete a Reservation.
+        -Find reservation.
+        -Find hours of operation.
+        -Returns an object containing objects representing the days of the week
+         with the hours of operation for the relevant day.
+        -Find number of reservations at a given time.
+    -Internal (For admin use only):
+        -Add restaurant.
+        -Purge current reservations table (using node-cron). 
+
+Assumptions:
+    1. If a seat is empty it can be reserved.
+    2. The user will be required to know the name of the restaurant they want to
+       eat at.
+    3. The name of the individual booking and their reservation time will serve as a 
+       unique key.
+    4. The input provided by the Input Formatting to the Business Logic is
+       exactly what the Business Logic needs.  Developer error is not a concern.
+    5. Reservations can only be made on the half hour.
+    6. No show reservations are still tracked as past reservations.
+    7. It is assumed that all payments/refunds attempted work in the
+       sense that no power outages or other system disruptions occur during the
+       processing of said payments/refunds.
+
+Requirements Issues:
+    1. Requirement 10 is vaguely worded and does say which reservation tables it
+       wants purged at 3 am.  It is assumed that only the current reservations
+       table is purged.  
