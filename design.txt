@@ -46,9 +46,6 @@ Business Logic Interface:
     -Submit Reservation.
         -Returns success, fail, name/reservation time already used, or time 
          slot full.
-    -See free time slots.
-        -Returns an array of objects that has the number of seats available for 
-         1.5 hours starting every half hour.
     -Cancel a Reservation.
         -Returns success, fail, or reservation does not exist.
     -Re-schedule a reservation.
@@ -60,8 +57,6 @@ Business Logic Interface:
     -Valid time for reservation.
         -Returns whether the time selected for a reservation is during the hours
          of operation of the restaurant in question.
-    -Does reservation exist.
-        -Returns whether the reservation exists or not.
     -Register when a guest shows up.
         -Makes the necessary refund and moves the reservation to the past 
          reservation table.
@@ -86,6 +81,7 @@ DB Logic Interface:
         -Returns an object containing objects representing the days of the week
          with the hours of operation for the relevant day.
         -Find number of reservations at a given time.
+        -Find free reservation slots for the day.
     -Internal (For admin use only):
         -Add restaurant.
         -Purge current reservations table (using node-cron). 
@@ -103,6 +99,7 @@ Assumptions:
     7. It is assumed that all payments/refunds attempted work in the
        sense that no power outages or other system disruptions occur during the
        processing of said payments/refunds.
+    8. Days will be formatted as follows: Sunday: 0, Monday: 1, ...
 
 Requirements Issues:
     1. Requirement 10 is vaguely worded and does say which reservation tables it
