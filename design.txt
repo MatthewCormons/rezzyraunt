@@ -100,8 +100,83 @@ Assumptions:
        sense that no power outages or other system disruptions occur during the
        processing of said payments/refunds.
     8. Days will be formatted as follows: Sunday: 0, Monday: 1, ...
+    9. It is assumed restaurant names are unique.
+    10. Reservations are deleted as they are registered as either a no show or as 
+        in attendance.  This obviates the need for the deletion of current reservations 
+        at the end of the day.
+    11. It is assumed that the input received by inputFormatting.js from its caller is
+        the correct type of data (i.e. number if number was expected).
 
 Requirements Issues:
     1. Requirement 10 is vaguely worded and does say which reservation tables it
        wants purged at 3 am.  It is assumed that only the current reservations
        table is purged.  
+
+Test Strategy:
+    Though I am unaware of any tools in JS that allow this, though it is likely they exist,
+    I would like to implement mocking for each layer of my code (e.g. HippoMocks; 
+    http://www.hippomocks.com/Main_Page).  So, each of businessLogic.js,
+    dbLogic.js, and reservationPaymentHandling.js would have a mock function implemented for
+    each of its existing function.  This will allow for a controlled return input to be 
+    passed back to the function under test, i.e. the calling function, in a manner that is
+    similar to production execution as possible.
+
+    Using these mocks, I would proceed through every function in every file and do the 
+    following:
+        1. Input normal use case data.
+        2. Input edge case data.
+        3. Input data that is known to cause a valid failure.
+
+    For the test cases relevant to dbLogic.js, a test database would be instantiated
+    for the run of the test then deleted at test completion.
+    
+    Once I had completed the above tests with mocks, I would run full integration tests of
+    the entire system using a test database.  As above, I would run the following test 
+    scenarios:
+        1. Input normal use case data.
+        2. Input edge case data.
+        3. Input data that is known to cause a valid failure.
+    
+    As much as is possible, these tests would cover all known paths through the code.
+
+    I would then create a simple web interface for this API and use it to do by-hand 
+    integration of the system with ExpressJS implemented.  This would entail
+    constructing a word document with test steps to ensure reproducibility.  As before,
+    the tests would cover the following inputs:
+        1. Input normal use case data.
+        2. Input edge case data.
+        3. Input data that is known to cause a valid failure.
+
+
+Tasks Not Completed Due to Time Constraints and What I would Like to Do Differently:
+    This task has taken significantly more time than I initially thought that it would.  
+    This is likely due to my recent inexperience with MongoDB and NodeJS.  As such, 
+    though I have a design and test strategy for the entire system, I have not been able
+    to complete my testing and implementation of this system.  As such, I will explain all 
+    tasks that I have not completed here.
+    1. Due to time constraints, I have placed all data in one paritioned collection per restaurant.
+       If I had more time, I would have investigated the use of MongooseJS and a collection for each of 
+       the following: restaurant opening hours, current reservations, old reservations, and restaurant 
+       capacity.  In particular, I would need more time to investigate any Foreign Key behaviour that
+       MongoDB may have.
+    2. Due to time constraints, I have been unable to implement url path routing in ExpressJS.
+       If I had the time, this would be a simple matter of specifying the paths elaborated
+       in the design above and having said paths call out to the relevant inputFormatting.js functions.
+    3. Though I have stated in the assumptions that I assume correct data is passed in, I would really
+       like to either implement a module or find a module to do type verification.  This would be used
+       throughout the code in order to enfore Design by Contract between all of the functions in this
+       system in order to ensure that all functions create and consume correct data.
+    4. I would rethink the way in which I am storing reservations and doing seat availability.
+       Currently, the way in which I am attempting to store current restaurant reservation data would
+       function much better with a synchronous language such as C++ or PHP in the sense that the
+       strategy I am using would be much easier to use if looping through multiple database accesses
+       were possible; since NodeJS is asychronous, the most similar I could get to this behaviour is
+       recursive database calls which would easily lead to stack size issues should one attempt to use this
+       program at scale.  
+
+       One possible solution would be to store snapshots of the seats used for reservations for every half
+       hour the restaurant is open.  Then, whenever a reservation is made, the relevant snapshots would be
+       updated.  This would make it much easier to check for open seats at a given time and would also
+       allow one to encode more data about the layout of the tables of the restaurant (i.e. number of chairs/
+       table, etc.).  This would require another collection linked to each restaurant in order to store the
+       snapshots of the seats occupied.  The snapshots themselves would simply be javascript objects.  
