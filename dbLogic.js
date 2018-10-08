@@ -1,4 +1,21 @@
+// Require statements.
+//
 var MongoClient = require('mongodb').MongoClient;
+
+// TODO: (If Time)
+//  Move all groupings of constants to their own configuration file
+//  or, at the very least, a common configuration file.
+//
+
+// Constants for database connection.
+//
+
+// URL of database.
+//
+var dbUrl = "mongodb://localhost:27017/dataDb";
+
+// Constants for database naming.
+//
 
 // The prefix prepended to restaurant names to create/access
 // a restaurant's current reservations collection.
@@ -15,14 +32,36 @@ var prefixForOldReservationCollection = "Old_";
 //
 var restaurantsTableName = "Restaurants";
 
+// Constants for working with time.
+//
+
+// Hour in milliseconds.
+//
+var hourInMilliseconds = 3600000.0;
+
+// Hour and a half in milliseconds.
+//
+var hourAndHalfInMilliseconds = hourInMilliseconds * 1.5;
+
+// Reservations can only occur on half hours (i.e. times ending with :00 and :30).
+//
+var reservationTimeIncrement = hourInMilliseconds/2.0;
+
 var dbConnect = function(functionOnComplete)
-{
-    var dbUrl = "mongodb://localhost:27017/dataDb";
-    
+{    
     MongoClient.connect(dbUrl, function(error, db)
     {
         // The caller is responsible for closing the db connection.
         //
+
+        // TODO: (If time)
+        //  Pass in two function objects:
+        //   1. The function to execute before closing the database connection.
+        //   2. The callback function to call once the db connection is closed.
+        //  This will enable me to close the db connection here thus tidying 
+        //  up the code and removing the need for internal knowledge of this
+        //  function.
+
         functionOnComplete(error, db);
     });
 }
@@ -196,7 +235,6 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
             // reservations.  Then, use this range to create a query object 
             // to use to search for table availability.
             //
-            var hourAndHalfInMilliseconds = 5400000.0;
             var upperRange = inputObject.timeOfReservation.valueOf() + hourAndHalfInMilliseconds;
             var lowerRange = inputObject.timeOfReservation.valueOf() - hourAndHalfInMilliseconds;
             var availabilityQuery = 
@@ -281,15 +319,20 @@ exports.validTimeForReservation = function(inputObject, functionOnComplete)
                 {
                     var dayOfPotentialReservation = potentialReservationDateObject.getDay();
 
-                    var hoursOfPotentialReservation = potentialReservationDateObject.getHours();
-                    var minutesOfPotentialReservationInHours = potentialReservationDateObject.getMinutes()/60.0;
-                    var totalHoursOfPotentialReservation = hoursOfPotentialReservation + minutesOfPotentialReservationInHours;
+                    var hoursOfPotentialReservation = 
+                        potentialReservationDateObject.getHours();
+                    var minutesOfPotentialReservationInHours = 
+                        potentialReservationDateObject.getMinutes()/60.0;
+                    var totalHoursOfPotentialReservation = 
+                        hoursOfPotentialReservation + minutesOfPotentialReservationInHours;
 
-                    var totalHoursAsMilliseconds = 3600000.0 * totalHoursOfPotentialReservation;
+                    var totalHoursAsMilliseconds = 
+                        hourInMilliseconds * totalHoursOfPotentialReservation;
 
                     var isValidTimeForReservation = 
                         totalHoursAsMilliseconds >= result[dayOfPotentialReservation].open && 
-                        totalHoursAsMilliseconds < result[dayOfPotentialReservation].close;
+                        totalHoursAsMilliseconds < result[dayOfPotentialReservation].close &&
+                        totalHoursAsMilliseconds%reservationTimeIncrement == 0;
                     
                     var resultObject = 
                     {
@@ -297,6 +340,115 @@ exports.validTimeForReservation = function(inputObject, functionOnComplete)
                     };
 
                     functionOnComplete(null, resultObject);
+                }
+            });
+        }
+    });
+}
+
+exports.findFreeReservationSlots = function(inputObject, functionOnComplete)
+{
+    dbConnect(function(error, db)
+    {
+        if (error)
+        {
+            // Change all to controlled error object.
+            // If time, winston logging for detailed info of all
+            // errors like this.
+            //
+            db.close();
+            functionOnComplete(error, null);
+        }
+        else
+        {
+            var findRestaurantObject = 
+            {
+                restaurantName: inputObject.restaurant
+            };
+
+            db.collection(restaurantsTableName).findOne(findRestaurantObject, function(error, restaurantObject) {
+                if (error)
+                {
+                    db.close();
+                    functionOnComplete(error, null);
+                }
+                else
+                {
+                    // dayToSearchForReservations is a number corresponding to the
+                    // day of the week to search for availability
+                    var hoursOfOperation = 
+                        restaurantObject.hoursOfOperation[
+                            inputObject.dayToSearchForReservations];
+                    
+                    var nameOfCollection =
+                        prefixForCurrentReservationCollection +
+                        inputObject.restaurant;
+                    
+                    var daySelectedObject = 
+                        Date(
+                            inputObject.yearToSearchForReservations,
+                            inputObject.monthToSearchForReservations,
+                            inputObject.dayToSearchForReservations);
+                    
+                    var dayValueInMilliseconds = daySelectedObject.valueOf();
+                    
+                    var lowerBound = dayValueInMilliseconds + hoursOfOperation.open;
+                    var upperBound = dayValueInMilliseconds + hoursOfOperation.close;
+
+                    var reservationsForGivenDayQuery = 
+                    {
+                        timeOfReservation: 
+                        {
+                            $gte: lowerBound,
+                            $lt: upperBound
+                        }
+                    };
+
+                    db.collection(nameOfCollection).find(reservationsForGivenDayQuery, function(error, reservationsForDay)
+                    {
+                        db.close();
+                        if (error)
+                        {
+                            functionOnComplete(error, null);
+                        }
+                        else
+                        {
+                            var availabilityObject;
+                            
+                            for (var reservationSlot = lowerBound; 
+                                reservationSlot < upperBound; 
+                                reservationSlot += reservationTimeIncrement)
+                            {
+                                availabilityObject.reservationSlot = restaurantObject.maxOccupancy;
+
+                                var earliestDinerStartInReservationSlot = 
+                                    reservationSlot - hourAndHalfInMilliseconds;
+                                var latestDinerStartInReservationSlot = 
+                                    reservationSlot + hourAndHalfInMilliseconds;
+
+                                for (reservation in reservationsForDay)
+                                {                                    
+                                    if (reservation.timeOfReservation > earliestDinerStartInReservationSlot &&
+                                        reservation.timeOfReservation < latestDinerStartInReservationSlot)
+                                    {
+                                        availabilityObject.reservationSlot -= reservation.numberOfGuests;
+                                    }
+                                    else
+                                    {
+                                        // Do nothing.
+                                        //
+                                    }
+                                }
+                            }
+                        }
+
+                        var openingsForReservationsObject = 
+                        {
+                            reservationsAtEachTime: availabilityObject
+                        };
+
+                        functionOnComplete(null, openingsForReservationsObject);
+                    });
                 }
             });
         }

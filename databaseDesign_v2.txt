@@ -6,8 +6,8 @@ Restaurant Collection:
                 {
                     0: <= Sunday
                     {
-                        open: some_open_time,
-                        close: some_close_time
+                        open: some_open_time_in_milliseconds,
+                        close: some_close_time_in_milliseconds
                     },
                     1: ... <= Monday
                 }
