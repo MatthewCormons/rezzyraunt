@@ -6,7 +6,9 @@ exports.submitReservation = function(inputObject, functionOnComplete)
     var seatsAvailableInputObject =
     {
         timeOfReservation: inputObject.timeOfReservation,
-        nameOfReservation: inputObject.nameOfReservation
+        nameOfReservation: inputObject.nameOfReservation,
+        numberOfGuests: inputObject.numberOfGuests,
+        restaurant: inputObject.restaurant
     };
     
     seatsAvailableForReservation(seatsAvailableInputObject, function(error, seatsAvailable)
@@ -17,7 +19,7 @@ exports.submitReservation = function(inputObject, functionOnComplete)
         }
         else
         {
-            if (seatsAvailable >= inputObject.numberOfGuests)
+            if (seatsAvailable.seatsAvailableForReservation >= inputObject.numberOfGuests)
             {
                 var inputObjectPayment = 
                 {
@@ -53,11 +55,18 @@ exports.submitReservation = function(inputObject, functionOnComplete)
 
 exports.cancelReservation = function(inputObject, functionOnComplete)
 {
-    dbLogic.findReservation(inputObject, function(error, foundReservation) 
+    var reservationCancelObject =
+    {
+        timeOfReservation: inputObject.timeOfReservation,
+        nameOfReservation: inputObject.nameOfReservation,
+        restaurant: inputObject.restaurant
+    };
+
+    dbLogic.findReservation(reservationCancelObject, function(error, foundReservation) 
     {
         if (error)
         {
-            functionOnComplete(error);
+            functionOnComplete(error, null);
         }
         else
         {
@@ -73,13 +82,13 @@ exports.cancelReservation = function(inputObject, functionOnComplete)
                 {
                     if (error)
                     {
-                        functionOnComplete(error);
+                        functionOnComplete(error, null);
                     }
                     else
                     {
-                        dbLogic.deleteReservation(inputObject, function(error)
+                        dbLogic.deleteReservation(reservationCancelObject, function(error)
                         {
-                            functionOnComplete(error);
+                            functionOnComplete(error, null);
                         });
                     }
                 });
@@ -88,7 +97,7 @@ exports.cancelReservation = function(inputObject, functionOnComplete)
             {
                 var errorObject = 
                 {
-                    errorMessage: "No reservation for this person at that time found."
+                    errorMessage: "No reservation for this person found at that time."
                 };
                 functionOnComplete(errorObject);
             }
@@ -102,6 +111,7 @@ exports.rescheduleReservation = function(inputObject, functionOnComplete)
     {
         timeOfReservation: inputObject.timeOfReservation,
         nameOfReservation: inputObject.nameOfReservation,
+        restaurant: inputObject.restaurant
     };
 
     dbLogic.findReservation(findInputObject, function(error, foundReservation)
@@ -111,13 +121,14 @@ exports.rescheduleReservation = function(inputObject, functionOnComplete)
             functionOnComplete(error);
         }
         else
-        {
+        {            
             if (foundReservation)
             {
                 var deleteInputObject =
                 {
                     timeOfReservation: inputObject.timeOfReservation,
                     nameOfReservation: inputObject.nameOfReservation,
+                    restaurant: inputObject.restaurant
                 };
                 dbLogic.deleteReservation(deleteInputObject, function(error)
                 {
@@ -126,18 +137,12 @@ exports.rescheduleReservation = function(inputObject, functionOnComplete)
                         functionOnComplete(error);
                     }
                     else
-                    {
-                        var insertInputObject = 
-                        {
-                            timeOfReservation: inputObject.newTimeOfReservation,
-                            nameOfReservation: inputObject.nameOfReservation,
-                            numberOfGuests: foundReservation.numberOfGuests
-                        };
-                        
+                    {                        
                         var seatsAvailableInputObject =
                         {
                             timeOfReservation: inputObject.timeOfReservation,
-                            nameOfReservation: inputObject.nameOfReservation
+                            nameOfReservation: inputObject.nameOfReservation,
+                            restaurant: inputObject.restaurant
                         };
 
                         seatsAvailableForReservation(seatsAvailableInputObject, function(error, result)
@@ -148,6 +153,14 @@ exports.rescheduleReservation = function(inputObject, functionOnComplete)
                             }
                             else
                             {
+                                var insertInputObject = 
+                                {
+                                    timeOfReservation: inputObject.newTimeOfReservation,
+                                    nameOfReservation: inputObject.nameOfReservation,
+                                    numberOfGuests: foundReservation.numberOfGuests,
+                                    restaurant: inputObject.restaurant
+                                };
+                                
                                 dbLogic.insertReservation(insertInputObject, function(error)
                                 {
                                     functionOnComplete(error);
@@ -194,7 +207,13 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
 
 exports.validTimeForReservation = function(inputObject, functionOnComplete)
 {
-    dbLogic.validTimeForReservation(inputObject, function(error)
+    var validReservationObject = 
+    {
+        timeOfReservation: inputObject.timeOfReservation,
+        restaurant: inputObject.restaurant
+    };
+    
+    dbLogic.validTimeForReservation(validReservationObject, function(error)
     {
         functionOnComplete(error);
     });
@@ -207,7 +226,7 @@ exports.registerGuestArrival = function(inputObject, functionOnComplete)
         timeOfReservation: inputObject.timeOfReservation
     };
     
-    var refund = calclateRefund(refundCalculationObject);
+    var refund = calculateRefund(refundCalculationObject);
     reservationPaymentHandling.makeRefund(refund, function(error)
     {
         if (error)
@@ -220,6 +239,7 @@ exports.registerGuestArrival = function(inputObject, functionOnComplete)
             {
                 timeOfReservation: inputObject.timeOfReservation,
                 nameOfReservation: inputObject.nameOfReservation,
+                restaurant: inputObject.restaurant
             };
             dbLogic.deleteReservation(deleteInputObject, function(error)
             {

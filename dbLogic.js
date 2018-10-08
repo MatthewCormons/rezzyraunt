@@ -1,5 +1,20 @@
 var MongoClient = require('mongodb').MongoClient;
 
+// The prefix prepended to restaurant names to create/access
+// a restaurant's current reservations collection.
+//
+var prefixForCurrentReservationCollection = "Current_";
+
+// The prefix prepended to restaurant names to create/access
+// a restaurant's old reservations collection.
+//
+var prefixForOldReservationCollection = "Old_";
+
+// Name of the table containing the list of names
+// of the restaurants in the database.
+//
+var restaurantsTableName = "Restaurants";
+
 var dbConnect = function(functionOnComplete)
 {
     var dbUrl = "mongodb://localhost:27017/dataDb";
@@ -19,22 +34,53 @@ exports.insertReservation = function(inputObject, functionOnComplete)
         if (error)
         {
             db.close();
-            functionOnComplete(error);
+            functionOnComplete(error, null);
         }
         else
         {
-            var insertObject = 
+            var restaurantNameQuery = 
             {
-                timeOfReservation: inputObject.timeOfReservation,
-                nameOfReservation: inputObject.nameOfReservation,
-                numberOfGuests: inputObject.numberOfGuests,
-                status: "new"
+                restaurantName: inputObject.restaurant
             };
-
-            db.collection(inputObject.restaurant).insertOne(insertObject, function(error, result)
+            
+            db.collection(restaurantsTableName).findOne(restaurantNameQuery, function(error, result)
             {
-                db.close();
-                functionOnComplete(error);
+                if (error)
+                {
+                    db.close();
+                    functionOnComplete(error, null);
+                }
+                else
+                {
+                    if (!result)
+                    {
+                        db.close();
+                        var errorObject = 
+                        {
+                            error: "Restaurant does not exist."
+                        };
+                        functionOnComplete(errorObject, null);
+                    }
+                    else
+                    {
+                        var insertObject = 
+                        {
+                            timeOfReservation: inputObject.timeOfReservation,
+                            nameOfReservation: inputObject.nameOfReservation,
+                            numberOfGuests: inputObject.numberOfGuests
+                        };
+            
+                        var nameOfCollection = 
+                            prefixForCurrentReservationCollection +
+                            inputObject.restaurant;
+
+                        db.collection(nameOfCollection).insertOne(insertObject, function(error, result)
+                        {   
+                            db.close();
+                            functionOnComplete(error);
+                        });
+                    }
+                }
             });
         }
     });
@@ -42,14 +88,14 @@ exports.insertReservation = function(inputObject, functionOnComplete)
 
 exports.findReservation = function(inputObject, functionOnComplete)
 {
-    findReservationHelper(inputObject, function(error, result)
+    findReservationHelper(inputObject, db, function(error, result)
     {
         db.close();
         functionOnComplete(error, result);
     });
 }
 
-var findReservationHelper = function(inputObject, functionOnComplete)
+var findReservationHelper = function(inputObject, db, functionOnComplete)
 {
     // This function relies on the caller to close the db connection.
     //
@@ -64,11 +110,14 @@ var findReservationHelper = function(inputObject, functionOnComplete)
             var findObject = 
             {
                 timeOfReservation: inputObject.timeOfReservation,
-                nameOfReservation: inputObject.nameOfReservation,
-                status: "new"
+                nameOfReservation: inputObject.nameOfReservation
             };
 
-            db.collection(inputObject.restaurant).findOne(findObject, function(error, result)
+            var nameOfCollection = 
+                prefixForCurrentReservationCollection +
+                inputObject.restaurant;
+
+            db.collection(nameOfCollection).findOne(findObject, function(error, result)
             {
                 functionOnComplete(error, result);
             });
@@ -80,30 +129,55 @@ exports.deleteReservation = function(inputObject, functionOnComplete)
 {
     findReservationHelper(inputObject, function(error, result)
     {
-        // Move the reservation to the old part of the collection.
-        //
-        var insertObject = 
+        if (error)
         {
-            timeOfReservation: inputObject.timeOfReservation,
-            nameOfReservation: inputObject.nameOfReservation,
-            numberOfGuests: result.numberOfGuests,
-            status: "old"
-        };
-
-        db.collection(inputObject.restaurant).insertOne(insertObject, function(error, result)
+            db.close();
+            functionOnComplete(error, null);
+        }
+        else
         {
-            // Delete the original reservation.
+            // Move the reservation to the old collection.
             //
-            var deleteObject = 
+            var insertObject = 
             {
                 timeOfReservation: inputObject.timeOfReservation,
                 nameOfReservation: inputObject.nameOfReservation,
+                numberOfGuests: result.numberOfGuests
             };
-            db.collection(inputObject.restaurant).deleteOne(deleteObject, function(error, result)
+
+            var nameOfOldCollection = 
+                prefixForOldReservationCollection +
+                inputObject.restaurant;
+        
+            db.collection(nameOfOldCollection).insertOne(insertObject, function(error, result)
             {
-                functionOnComplete(error);
+                if (error)
+                {
+                    db.close();
+                    functionOnComplete(error, null);
+                }
+                else
+                {
+                    // Delete the original reservation.
+                    //
+                    var deleteObject = 
+                    {
+                        timeOfReservation: inputObject.timeOfReservation,
+                        nameOfReservation: inputObject.nameOfReservation,
+                    };
+
+                    var nameOfNewCollection =
+                        prefixForCurrentReservationCollection +
+                        inputObject.restaurant;
+
+                    db.collection(nameOfNewCollection).deleteOne(deleteObject, function(error, result)
+                    {   
+                        db.close();
+                        functionOnComplete(error, null);
+                    });
+                }
             });
-        });
+        }
     });
 }
 
@@ -118,10 +192,14 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
         }
         else
         {
+            // Create range around reservation time to search for existing 
+            // reservations.  Then, use this range to create a query object 
+            // to use to search for table availability.
+            //
             var hourAndHalfInMilliseconds = 5400000.0;
-            var upperRange = inputObject.timeOfReservation + hourAndHalfInMilliseconds;
-            var lowerRange = inputObject.timeOfReservation - hourAndHalfInMilliseconds;
-            var countQuery = 
+            var upperRange = inputObject.timeOfReservation.valueOf() + hourAndHalfInMilliseconds;
+            var lowerRange = inputObject.timeOfReservation.valueOf() - hourAndHalfInMilliseconds;
+            var availabilityQuery = 
             {
                 timeOfReservation: 
                 {
@@ -129,7 +207,12 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
                     $lt: upperRange
                 }
             };
-            db.collection(inputObject.restaurant).count(countQuery, function(error, count)
+
+            var nameOfCollection =
+                prefixForCurrentReservationCollection +
+                inputObject.restaurant;
+
+            db.collection(nameOfCollection).find(availabilityQuery, function(error, foundReservations)
             {
                 if (error)
                 {
@@ -138,14 +221,23 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
                 }
                 else
                 {
-                    var findMaxOccupancyObject = 
+                    // Count the number of seats occupied during the queried 
+                    // period of time.
+                    //
+                    var seatsTaken = 0;
+                    foreach (reservation in foundReservations)
                     {
-                        maxOccupancy: 
-                        {
-                            $gt: 0
-                        }
+                        seatsTaken += reservation.numberOfGuests
+                    }
+
+                    // Get the maximum occupancy of the restaurant.
+                    //
+                    var restaurantNameQuery = 
+                    {
+                        restaurantName: inputObject.restaurant
                     };
-                    db.collection(inputObject.restaurant).findOne(findMaxOccupancyObject, function(error, result)
+                    
+                    db.collection(restaurantsTableName).findOne(restaurantNameQuery, function(error, result)
                     {
                         db.close();
                         var numberOfSeatsObject = 
@@ -162,12 +254,6 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
 
 exports.validTimeForReservation = function(inputObject, functionOnComplete)
 {    
-    var potentialReservationDateObject = new Date(inputObject.timeOfReservation);
-    var dayOfWeekOfPotentialReservation = potentialReservationDateObject.getDay();
-    var hoursRetrievalObject = 
-    {
-        hoursOfOperation: dayOfWeekOfPotentialReservation
-    };
     dbConnect(function(error, db)
     {
         if (error)
@@ -177,7 +263,14 @@ exports.validTimeForReservation = function(inputObject, functionOnComplete)
         }
         else
         {
-            db.collection(inputObject.restaurant).findOne(hoursRetrievalObject, function(error, result)
+            var potentialReservationDateObject = new Date(inputObject.timeOfReservation);
+            var dayOfWeekOfPotentialReservation = potentialReservationDateObject.getDay();
+            var restaurantNameQuery = 
+            {
+                restaurantName: inputObject.restaurant
+            };
+            
+            db.collection(restaurantsTableName).findOne(restaurantNameQuery, function(error, result)
             {
                 db.close();
                 if (error)
@@ -186,13 +279,17 @@ exports.validTimeForReservation = function(inputObject, functionOnComplete)
                 }
                 else
                 {
+                    var dayOfPotentialReservation = potentialReservationDateObject.getDay();
+
                     var hoursOfPotentialReservation = potentialReservationDateObject.getHours();
                     var minutesOfPotentialReservationInHours = potentialReservationDateObject.getMinutes()/60.0;
                     var totalHoursOfPotentialReservation = hoursOfPotentialReservation + minutesOfPotentialReservationInHours;
 
                     var totalHoursAsMilliseconds = 3600000.0 * totalHoursOfPotentialReservation;
 
-                    var isValidTimeForReservation = totalHoursAsMilliseconds >= result.openTime && totalHoursAsMilliseconds < result.closeTime;
+                    var isValidTimeForReservation = 
+                        totalHoursAsMilliseconds >= result[dayOfPotentialReservation].open && 
+                        totalHoursAsMilliseconds < result[dayOfPotentialReservation].close;
                     
                     var resultObject = 
                     {

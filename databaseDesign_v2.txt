@@ -1,0 +1,28 @@
+Restaurant Collection:
+    Document contains:
+        -Restaurant Name (unique) => restaurantName
+        -Restaurant Hours of Operation => hoursOfOperation
+            -e.g.
+                {
+                    0: <= Sunday
+                    {
+                        open: some_open_time,
+                        close: some_close_time
+                    },
+                    1: ... <= Monday
+                }
+        -Restaurant Maximum Occupancy => maxOccupancy
+
+Restaurant Current Reservations Collection:
+    Name Format: Current_ + Restaurant Name
+    Document Contains:
+        -Time of Reservation  \ _ Combine to make unique document
+        -Name of Reservation  /
+        -Number of Guests
+
+Restaurant Old Reservations Collection:
+    Name Format: Old_ + Restaurant Name
+    Document Contains:
+        -Time of Reservation  \ _ Combine to make unique document
+        -Name of Reservation  /
+        -Number of Guests
