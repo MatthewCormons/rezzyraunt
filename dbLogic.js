@@ -235,8 +235,8 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
             // reservations.  Then, use this range to create a query object 
             // to use to search for table availability.
             //
-            var upperRange = inputObject.timeOfReservation.valueOf() + hourAndHalfInMilliseconds;
-            var lowerRange = inputObject.timeOfReservation.valueOf() - hourAndHalfInMilliseconds;
+            var upperRange = inputObject.timeOfReservation + hourAndHalfInMilliseconds;
+            var lowerRange = inputObject.timeOfReservation - hourAndHalfInMilliseconds;
             var availabilityQuery = 
             {
                 timeOfReservation: 
@@ -302,7 +302,6 @@ exports.validTimeForReservation = function(inputObject, functionOnComplete)
         else
         {
             var potentialReservationDateObject = new Date(inputObject.timeOfReservation);
-            var dayOfWeekOfPotentialReservation = potentialReservationDateObject.getDay();
             var restaurantNameQuery = 
             {
                 restaurantName: inputObject.restaurant
@@ -346,311 +345,237 @@ exports.validTimeForReservation = function(inputObject, functionOnComplete)
     });
 }
 
-exports.findFreeReservationSlots = function(inputObject, functionOnComplete)
-{
-    dbConnect(function(error, db)
-    {
-        if (error)
-        {
-            // Change all to controlled error object.
-            // If time, winston logging for detailed info of all
-            // errors like this.
-            //
-            db.close();
-            functionOnComplete(error, null);
-        }
-        else
-        {
-            var findRestaurantObject = 
-            {
-                restaurantName: inputObject.restaurant
-            };
-
-            db.collection(restaurantsTableName).findOne(findRestaurantObject, function(error, restaurantObject) {
-                if (error)
-                {
-                    db.close();
-                    functionOnComplete(error, null);
-                }
-                else
-                {
-                    // dayToSearchForReservations is a number corresponding to the
-                    // day of the week to search for availability
-                    var hoursOfOperation = 
-                        restaurantObject.hoursOfOperation[
-                            inputObject.dayToSearchForReservations];
-                    
-                    var nameOfCollection =
-                        prefixForCurrentReservationCollection +
-                        inputObject.restaurant;
-                    
-                    var daySelectedObject = 
-                        Date(
-                            inputObject.yearToSearchForReservations,
-                            inputObject.monthToSearchForReservations,
-                            inputObject.dayToSearchForReservations);
-                    
-                    var dayValueInMilliseconds = daySelectedObject.valueOf();
-                    
-                    var lowerBound = dayValueInMilliseconds + hoursOfOperation.open;
-                    var upperBound = dayValueInMilliseconds + hoursOfOperation.close;
-
-                    var reservationsForGivenDayQuery = 
-                    {
-                        timeOfReservation: 
-                        {
-                            $gte: lowerBound,
-                            $lt: upperBound
-                        }
-                    };
-
-                    db.collection(nameOfCollection).find(reservationsForGivenDayQuery, function(error, reservationsForDay)
-                    {
-                        db.close();
-                        if (error)
-                        {
-                            functionOnComplete(error, null);
-                        }
-                        else
-                        {
-                            var availabilityObject;
-                            
-                            for (var reservationSlot = lowerBound; 
-                                reservationSlot < upperBound; 
-                                reservationSlot += reservationTimeIncrement)
-                            {
-                                availabilityObject.reservationSlot = restaurantObject.maxOccupancy;
-
-                                var earliestDinerStartInReservationSlot = 
-                                    reservationSlot - hourAndHalfInMilliseconds;
-                                var latestDinerStartInReservationSlot = 
-                                    reservationSlot + hourAndHalfInMilliseconds;
-
-                                for (reservation in reservationsForDay)
-                                {                                    
-                                    if (reservation.timeOfReservation > earliestDinerStartInReservationSlot &&
-                                        reservation.timeOfReservation < latestDinerStartInReservationSlot)
-                                    {
-                                        availabilityObject.reservationSlot -= reservation.numberOfGuests;
-                                    }
-                                    else
-                                    {
-                                        // Do nothing.
-                                        //
-                                    }
-                                }
-                            }
-                        }
-
-                        var openingsForReservationsObject = 
-                        {
-                            reservationsAtEachTime: availabilityObject
-                        };
-
-                        functionOnComplete(null, openingsForReservationsObject);
-                    });
-                }
-            });
-        }
-    });
-}
-
 /////////////////////////////////////////////////////
 // Admin only setup tasks.
 /////////////////////////////////////////////////////
-exports.createRestaurant = function(inputObject)
-{
-    dbConnect(function (error, db)
-    {
-        if (error)
-        {
-            console.log("Restaurant creation failed.");
-        }
-        else
-        {
-            db.createCollection(inputObject.restaurant, function(error, result) 
-            {
-                if (error)
-                {
-                    db.close();
-                    console.log("Restaurant creation failed.");
-                }
-                else
-                {
-                    // Add max occupancy.
-                    //
-                    var maxOccupancyObject =
-                    {
-                        maxOccupancy: inputObject.maxOccupancy
-                    };
-                    db.collection(inputObject.restaurant).insertOne(maxOccupancyObject, function(error, result)
-                    {
-                        if (error)
-                        {
-                            db.close();
-                            console.log("Restaurant creation failed.");
-                        }
-                        else
-                        {
-                            var insertObject = 
-                            {
-                                hoursOfOperation: 0,
-                                openTime: inputObject.sunday.opentime,
-                                closeTime: inputObject.sunday.closeTime
-                            };
-                            db.collection(inputObject.restaurant).insertOne(insertObject, function(error, result)
-                            {
-                                if (error)
-                                {
-                                    db.close();
-                                    console.log("Restaurant creation failed.");
-                                }
-                                else
-                                {
-                                    var insertObject = 
-                                    {
-                                        hoursOfOperation: 1,
-                                        openTime: inputObject.monday.opentime,
-                                        closeTime: inputObject.monday.closeTime
-                                    };
-
-                                    db.collection(inputObject.restaurant).insertOne(insertObject, function(error, result)
-                                    {
-                                        if (error)
-                                        {
-                                            db.close();
-                                            console.log("Restaurant creation failed.");
-                                        }
-                                        else
-                                        {
-                                            var insertObject = 
-                                            {
-                                                hoursOfOperation: 2,
-                                                openTime: inputObject.tuesday.opentime,
-                                                closeTime: inputObject.tuesday.closeTime
-                                            };
-        
-                                            db.collection(inputObject.restaurant).insertOne(insertObject, function(error, result)
-                                            {
-                                                if (error)
-                                                {
-                                                    db.close();
-                                                    console.log("Restaurant creation failed.");
-                                                }
-                                                else
-                                                {
-                                                    var insertObject = 
-                                                    {
-                                                        hoursOfOperation: 3,
-                                                        openTime: inputObject.wednesday.opentime,
-                                                        closeTime: inputObject.wednesday.closeTime
-                                                    };
-                
-                                                    db.collection(inputObject.restaurant).insertOne(insertObject, function(error, result)
-                                                    {
-                                                        if (error)
-                                                        {
-                                                            db.close();
-                                                            console.log("Restaurant creation failed.");
-                                                        }
-                                                        else
-                                                        {
-                                                            var insertObject = 
-                                                            {
-                                                                hoursOfOperation: 4,
-                                                                openTime: inputObject.thursday.opentime,
-                                                                closeTime: inputObject.thursday.closeTime
-                                                            };
-                        
-                                                            db.collection(inputObject.restaurant).insertOne(insertObject, function(error, result)
-                                                            {
-                                                                if (error)
-                                                                {
-                                                                    db.close();
-                                                                    console.log("Restaurant creation failed.");
-                                                                }
-                                                                else
-                                                                {
-                                                                    var insertObject = 
-                                                                    {
-                                                                        hoursOfOperation: 5,
-                                                                        openTime: inputObject.friday.opentime,
-                                                                        closeTime: inputObject.friday.closeTime
-                                                                    };
-                                
-                                                                    db.collection(inputObject.restaurant).insertOne(insertObject, function(error, result)
-                                                                    {
-                                                                        if (error)
-                                                                        {
-                                                                            db.close();
-                                                                            console.log("Restaurant creation failed.");
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                            var insertObject = 
-                                                                            {
-                                                                                hoursOfOperation: 6,
-                                                                                openTime: inputObject.saturday.opentime,
-                                                                                closeTime: inputObject.saturday.closeTime
-                                                                            };
-                                        
-                                                                            db.collection(inputObject.restaurant).insertOne(insertObject, function(error, result)
-                                                                            {
-                                                                                if (error)
-                                                                                {
-                                                                                    db.close();
-                                                                                    console.log("Restaurant creation failed.");
-                                                                                }
-                                                                                else
-                                                                                {
-                                                                                    db.close();
-                                                                                    console.log("Restaurant creation succeeded.");
-                                                                                }
-                                                                            });
-                                                                        }
-                                                                    });
-                                                                }
-                                                            });
-                                                        }
-                                                    });
-                                                }
-                                            });
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    });
-                }
-            });
-        }
-    });
-}
-
-exports.deleteRestaurant = function(inputObject)
+exports.createRestaurant = function(restaurantObject, functionOnComplete)
 {
     dbConnect(function(error, db)
     {
         if (error)
         {
             db.close();
-            console.log("Delete restaurant failed.");
+            console.log("Restaurant creation failed.  Unable to open database.\n");
+            functionOnComplete();
         }
         else
         {
-            db.collection(inputObject.restaurant).drop(function(error, result)
+            db.collection(restaurantsTableName).insertOne(restaurantObject, function(error)
             {
+                db.close();
                 if (error)
                 {
-                    db.close();
-                    console.log("Delete restaurant failed.");
+                    console.log("Restaurant creation failed.  Unable to insert restaurant data.\n");
                 }
                 else
                 {
-                    db.close();
-                    console.log("Delete restaurant succeeded.");
+                    console.log("Restaurant creation succeeded.\n");
                 }
+                functionOnComplete();
             });
+        }
+    });
+}
+
+/////////////////////////////////////////////////////
+// Test tasks.
+/////////////////////////////////////////////////////
+
+// Test Constants
+//
+
+// Test Restaurant Name
+//
+var testRestaurantName = "TestRestaurantOne";
+
+// Test reservation time for unix time for 20:00 on December 1, 2018
+//
+var testReservationTimeOne = 1543694400;
+
+// Test reservation Name
+//
+var testReservationName = "PersonOne";
+
+// Test number of Guests
+//
+var testNumberOfGuests = 4;
+
+// NOTE!!!
+// Run tests in the order they appear in this file!!
+//
+exports.createTestRestaurant = function(inputObject)
+{
+    var testRestaurantHours = 
+    {
+        0:
+        {
+            open: 32400000.0,
+            close: 82800000.0
+        },
+        1:
+        {
+            open: 32400000.0,
+            close: 82800000.0
+        },
+        2:
+        {
+            open: 32400000.0,
+            close: 82800000.0
+        },
+        3:
+        {
+            open: 32400000.0,
+            close: 82800000.0
+        },
+        4:
+        {
+            open: 32400000.0,
+            close: 82800000.0
+        },
+        5:
+        {
+            open: 32400000.0,
+            close: 82800000.0
+        },
+        6:
+        {
+            open: 32400000.0,
+            close: 82800000.0
+        }
+    };
+    var testRestaurantMaximumOccupancy = 20;
+    var testRestaurantObject = 
+    {
+        restaurantName: testRestaurantName,
+        hoursOfOperation: testRestaurantHours,
+        maxOccupancy: testRestaurantMaximumOccupancy
+    };
+
+    console.log("Start of test restaurant creation.\n");
+
+    createRestaurant(testRestaurantObject, function()
+    {
+        console.log("End of test restaurant creation.\n");
+    });
+}
+
+exports.insertTestReservation = function()
+{
+    var testInsertObject = 
+    {
+        timeOfReservation: testReservationTimeOne, 
+        nameOfReservation: testReservationName,
+        numberOfGuests: testNumberOfGuests,
+        restaurant: testRestaurantName
+    };
+    console.log("Starting Test Insert...\n");
+    insertReservation(testInsertObject, function(error)
+    {
+        if (error)
+        {
+            console.log("Test Insert Failed.\n");
+        }
+        else
+        {
+            console.log("Test Insert Succeeded.\n");
+            console.log("Check MongoDB terminal for successful insertion.\n");
+        }
+    });
+}
+
+exports.findTestReservation = function()
+{
+    var testFindObject = 
+    {
+        timeOfReservation: testReservationTimeOne,
+        nameOfReservation: testReservationName,
+        restaurant: testRestaurantName
+    };
+    console.log("Starting Test Find...\n");
+    findReservation(testFindObject, function(error, testResult) 
+    {
+        if (error)
+        {
+            console.log("Test find failed.\n");
+        }
+        else
+        {
+            if (testResult)
+            {
+                console.log("Reservation Found:\n");
+                console.log(JSON.stringify(testResult));
+                console.log("\n\n");
+            }
+            else
+            {
+                console.log("Test find failed.  Existing object not found.\n");
+            }
+        }
+    });
+}
+
+exports.testSeatsAvailableForReservation = function()
+{
+    var testReservationTimeQueryObject = 
+    {
+        timeOfReservation: testReservationTimeOne,
+        restaurant: testRestaurantName
+    };
+    console.log("Starting Test Search for Available Seats...\n");
+    seatsAvailableForReservation(testReservationTimeQueryObject, function(error, result)
+    {
+        if (error)
+        {
+            console.log("Test search for seats available for reservation failed.\n");
+        }
+        else
+        {
+            console.log("Number of seats available: " + JSON.stringify(result) + "\n");
+        }
+    });
+}
+
+exports.deleteTestReservation = function()
+{
+    var testDeleteObject = 
+    {
+        timeOfReservation: testReservationTimeOne,
+        nameOfReservation: testReservationName,
+        restuarant: testRestaurantName
+    };
+    console.log("Starting Test Deletion...\n");
+    deleteReservation(testDeleteObject, function(error, result)
+    {
+        if (error)
+        {
+            console.log("Test deletion failed.\n");
+        }
+        else
+        {
+            console.log("Test deletion succeeded.\n");
+            console.log("Check both the old and current reservations in the MongoDB terminal.");
+        }
+    });
+}
+
+exports.testValidTimeForReservation = function()
+{
+    var testReservationTimeQueryObject = 
+    {
+        timeOfReservation: testReservationTimeOne,
+        restaurant: testRestaurantName
+    };
+
+    console.log("Starting Valid Time for Reservation Test...\n");
+    validTimeForReservation(testReservationTimeQueryObject, function(error, result)
+    {
+        if (error)
+        {
+            console.log("Test time validation failed.\n");
+        }
+        else
+        {
+            console.log("Is Valid Time => " + JSON.stringify(result) + "\n");
         }
     });
 }
