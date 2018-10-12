@@ -70,6 +70,7 @@ exports.insertReservation = function(inputObject, functionOnComplete)
 {
     dbConnect(function(error, db)
     {
+        var dbo = db.db("dataDb");
         if (error)
         {
             db.close();
@@ -82,7 +83,7 @@ exports.insertReservation = function(inputObject, functionOnComplete)
                 restaurantName: inputObject.restaurant
             };
             
-            db.collection(restaurantsTableName).findOne(restaurantNameQuery, function(error, result)
+            dbo.collection(restaurantsTableName).findOne(restaurantNameQuery, function(error, result)
             {
                 if (error)
                 {
@@ -113,7 +114,7 @@ exports.insertReservation = function(inputObject, functionOnComplete)
                             prefixForCurrentReservationCollection +
                             inputObject.restaurant;
 
-                        db.collection(nameOfCollection).insertOne(insertObject, function(error, result)
+                        dbo.collection(nameOfCollection).insertOne(insertObject, function(error, result)
                         {   
                             db.close();
                             functionOnComplete(error);
@@ -123,25 +124,26 @@ exports.insertReservation = function(inputObject, functionOnComplete)
             });
         }
     });
-}
+};
 
 exports.findReservation = function(inputObject, functionOnComplete)
 {
-    findReservationHelper(inputObject, db, function(error, result)
+    findReservationHelper(inputObject, function(error, db, result)
     {
-        db.close();
         functionOnComplete(error, result);
     });
 }
 
-var findReservationHelper = function(inputObject, db, functionOnComplete)
+var findReservationHelper = function(inputObject, functionOnComplete)
 {
     // This function relies on the caller to close the db connection.
     //
     dbConnect(function(error, db)
     {
+        var dbo = db.db("dataDb");
         if (error)
         {
+            db.close();
             functionOnComplete(error, null);
         }
         else
@@ -156,9 +158,9 @@ var findReservationHelper = function(inputObject, db, functionOnComplete)
                 prefixForCurrentReservationCollection +
                 inputObject.restaurant;
 
-            db.collection(nameOfCollection).findOne(findObject, function(error, result)
+            dbo.collection(nameOfCollection).findOne(findObject, function(error, db, result)
             {
-                functionOnComplete(error, result);
+                functionOnComplete(error, db, result);
             });
         }
     });
@@ -166,8 +168,9 @@ var findReservationHelper = function(inputObject, db, functionOnComplete)
 
 exports.deleteReservation = function(inputObject, functionOnComplete)
 {
-    findReservationHelper(inputObject, function(error, result)
+    findReservationHelper(inputObject, function(error, db, result)
     {
+        var dbo = db.db("dataDb");
         if (error)
         {
             db.close();
@@ -188,7 +191,7 @@ exports.deleteReservation = function(inputObject, functionOnComplete)
                 prefixForOldReservationCollection +
                 inputObject.restaurant;
         
-            db.collection(nameOfOldCollection).insertOne(insertObject, function(error, result)
+            dbo.collection(nameOfOldCollection).insertOne(insertObject, function(error, result)
             {
                 if (error)
                 {
@@ -209,7 +212,7 @@ exports.deleteReservation = function(inputObject, functionOnComplete)
                         prefixForCurrentReservationCollection +
                         inputObject.restaurant;
 
-                    db.collection(nameOfNewCollection).deleteOne(deleteObject, function(error, result)
+                    dbo.collection(nameOfNewCollection).deleteOne(deleteObject, function(error, result)
                     {   
                         db.close();
                         functionOnComplete(error, null);
@@ -231,6 +234,7 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
         }
         else
         {
+            var dbo = db.db("dataDb");
             // Create range around reservation time to search for existing 
             // reservations.  Then, use this range to create a query object 
             // to use to search for table availability.
@@ -245,12 +249,12 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
                     $lt: upperRange
                 }
             };
-
+            
             var nameOfCollection =
                 prefixForCurrentReservationCollection +
                 inputObject.restaurant;
 
-            db.collection(nameOfCollection).find(availabilityQuery, function(error, foundReservations)
+            dbo.collection(nameOfCollection).find(availabilityQuery).toArray(function(error, foundReservations)
             {
                 if (error)
                 {
@@ -263,9 +267,9 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
                     // period of time.
                     //
                     var seatsTaken = 0;
-                    foreach (reservation in foundReservations)
+                    for (var i = 0; i < foundReservations.length; i++)
                     {
-                        seatsTaken += reservation.numberOfGuests
+                        seatsTaken += foundReservations[i].numberOfGuests
                     }
 
                     // Get the maximum occupancy of the restaurant.
@@ -275,12 +279,12 @@ exports.seatsAvailableForReservation = function(inputObject, functionOnComplete)
                         restaurantName: inputObject.restaurant
                     };
                     
-                    db.collection(restaurantsTableName).findOne(restaurantNameQuery, function(error, result)
+                    dbo.collection(restaurantsTableName).findOne(restaurantNameQuery, function(error, result)
                     {
                         db.close();
                         var numberOfSeatsObject = 
                         {
-                            seatsAvailableForReservation: count - result.maxOccupancy
+                            seatsAvailableForReservation: result.maxOccupancy - seatsTaken
                         };
                         functionOnComplete(null, numberOfSeatsObject);
                     });
@@ -294,6 +298,7 @@ exports.validTimeForReservation = function(inputObject, functionOnComplete)
 {    
     dbConnect(function(error, db)
     {
+        var dbo = db.db("dataDb");
         if (error)
         {
             db.close();
@@ -307,7 +312,7 @@ exports.validTimeForReservation = function(inputObject, functionOnComplete)
                 restaurantName: inputObject.restaurant
             };
             
-            db.collection(restaurantsTableName).findOne(restaurantNameQuery, function(error, result)
+            dbo.collection(restaurantsTableName).findOne(restaurantNameQuery, function(error, result)
             {
                 db.close();
                 if (error)
@@ -317,7 +322,7 @@ exports.validTimeForReservation = function(inputObject, functionOnComplete)
                 else
                 {
                     var dayOfPotentialReservation = potentialReservationDateObject.getDay();
-
+                    console.log(dayOfPotentialReservation + "\n");
                     var hoursOfPotentialReservation = 
                         potentialReservationDateObject.getHours();
                     var minutesOfPotentialReservationInHours = 
@@ -327,11 +332,10 @@ exports.validTimeForReservation = function(inputObject, functionOnComplete)
 
                     var totalHoursAsMilliseconds = 
                         hourInMilliseconds * totalHoursOfPotentialReservation;
-
+                    
                     var isValidTimeForReservation = 
-                        totalHoursAsMilliseconds >= result[dayOfPotentialReservation].open && 
-                        totalHoursAsMilliseconds < result[dayOfPotentialReservation].close &&
-                        totalHoursAsMilliseconds%reservationTimeIncrement == 0;
+                        totalHoursAsMilliseconds >= result.hoursOfOperation[dayOfPotentialReservation].open && 
+                        totalHoursAsMilliseconds < result.hoursOfOperation[dayOfPotentialReservation].close;
                     
                     var resultObject = 
                     {
@@ -352,6 +356,7 @@ exports.createRestaurant = function(restaurantObject, functionOnComplete)
 {
     dbConnect(function(error, db)
     {
+        var dbo = db.db("dataDb");
         if (error)
         {
             db.close();
@@ -360,7 +365,7 @@ exports.createRestaurant = function(restaurantObject, functionOnComplete)
         }
         else
         {
-            db.collection(restaurantsTableName).insertOne(restaurantObject, function(error)
+            dbo.collection(restaurantsTableName).insertOne(restaurantObject, function(error)
             {
                 db.close();
                 if (error)
@@ -403,7 +408,8 @@ var testNumberOfGuests = 4;
 // NOTE!!!
 // Run tests in the order they appear in this file!!
 //
-exports.createTestRestaurant = function(inputObject)
+// Passes
+exports.createTestRestaurant = function()
 {
     var testRestaurantHours = 
     {
@@ -453,12 +459,13 @@ exports.createTestRestaurant = function(inputObject)
 
     console.log("Start of test restaurant creation.\n");
 
-    createRestaurant(testRestaurantObject, function()
+    exports.createRestaurant(testRestaurantObject, function()
     {
         console.log("End of test restaurant creation.\n");
     });
 }
 
+// Passes
 exports.insertTestReservation = function()
 {
     var testInsertObject = 
@@ -469,7 +476,7 @@ exports.insertTestReservation = function()
         restaurant: testRestaurantName
     };
     console.log("Starting Test Insert...\n");
-    insertReservation(testInsertObject, function(error)
+    exports.insertReservation(testInsertObject, function(error)
     {
         if (error)
         {
@@ -483,6 +490,7 @@ exports.insertTestReservation = function()
     });
 }
 
+// Passes
 exports.findTestReservation = function()
 {
     var testFindObject = 
@@ -492,7 +500,7 @@ exports.findTestReservation = function()
         restaurant: testRestaurantName
     };
     console.log("Starting Test Find...\n");
-    findReservation(testFindObject, function(error, testResult) 
+    exports.findReservation(testFindObject, function(error, testResult) 
     {
         if (error)
         {
@@ -514,6 +522,7 @@ exports.findTestReservation = function()
     });
 }
 
+// Passes
 exports.testSeatsAvailableForReservation = function()
 {
     var testReservationTimeQueryObject = 
@@ -522,7 +531,7 @@ exports.testSeatsAvailableForReservation = function()
         restaurant: testRestaurantName
     };
     console.log("Starting Test Search for Available Seats...\n");
-    seatsAvailableForReservation(testReservationTimeQueryObject, function(error, result)
+    exports.seatsAvailableForReservation(testReservationTimeQueryObject, function(error, result)
     {
         if (error)
         {
@@ -535,6 +544,7 @@ exports.testSeatsAvailableForReservation = function()
     });
 }
 
+// Fails in findReservationHelper where find test passes.
 exports.deleteTestReservation = function()
 {
     var testDeleteObject = 
@@ -544,7 +554,7 @@ exports.deleteTestReservation = function()
         restuarant: testRestaurantName
     };
     console.log("Starting Test Deletion...\n");
-    deleteReservation(testDeleteObject, function(error, result)
+    exports.deleteReservation(testDeleteObject, function(error, result)
     {
         if (error)
         {
@@ -558,6 +568,7 @@ exports.deleteTestReservation = function()
     });
 }
 
+// Passes
 exports.testValidTimeForReservation = function()
 {
     var testReservationTimeQueryObject = 
@@ -567,7 +578,7 @@ exports.testValidTimeForReservation = function()
     };
 
     console.log("Starting Valid Time for Reservation Test...\n");
-    validTimeForReservation(testReservationTimeQueryObject, function(error, result)
+    exports.validTimeForReservation(testReservationTimeQueryObject, function(error, result)
     {
         if (error)
         {

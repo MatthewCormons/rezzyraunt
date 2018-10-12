@@ -1,0 +1,19 @@
+{
+  "name": "rezzyraunt",
+  "version": "1.0.0",
+  "description": "Interview project.",
+  "main": "inputFormatting.js",
+  "scripts": {
+    "test": "N/A (for now)"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MatthewCormons/rezzyraunt.git"
+  },
+  "author": "Matthew Cormons <matthew@inputlogic.ca>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MatthewCormons/rezzyraunt/issues"
+  },
+  "homepage": "https://github.com/MatthewCormons/rezzyraunt"
+}

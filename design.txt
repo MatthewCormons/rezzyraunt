@@ -155,11 +155,8 @@ Tasks Not Completed Due to Time Constraints and What I would Like to Do Differen
     though I have a design and test strategy for the entire system, I have not been able
     to complete my testing and implementation of this system.  As such, I will explain all 
     tasks that I have not completed here.
-    1. Due to time constraints, I have placed all data in one paritioned collection per restaurant.
-       If I had more time, I would have investigated the use of MongooseJS and a collection for each of 
-       the following: restaurant opening hours, current reservations, old reservations, and restaurant 
-       capacity.  In particular, I would need more time to investigate any Foreign Key behaviour that
-       MongoDB may have.
+    1. Testing and debugging is incomplete.  Appropriate notes have been on the testing that has been
+       completed.
     2. Due to time constraints, I have been unable to implement url path routing in ExpressJS.
        If I had the time, this would be a simple matter of specifying the paths elaborated
        in the design above and having said paths call out to the relevant inputFormatting.js functions.
@@ -167,17 +164,23 @@ Tasks Not Completed Due to Time Constraints and What I would Like to Do Differen
        like to either implement a module or find a module to do type verification.  This would be used
        throughout the code in order to enfore Design by Contract between all of the functions in this
        system in order to ensure that all functions create and consume correct data.
-    4. I would rethink the way in which I am storing reservations and doing seat availability.
-       Currently, the way in which I am attempting to store current restaurant reservation data would
-       function much better with a synchronous language such as C++ or PHP in the sense that the
-       strategy I am using would be much easier to use if looping through multiple database accesses
-       were possible; since NodeJS is asychronous, the most similar I could get to this behaviour is
-       recursive database calls which would easily lead to stack size issues should one attempt to use this
-       program at scale.  
+    4. I would like to implement more database structure with Mongoose.
+    5. I would like to add more logging using Winston and add some more formalized error messages
+       that do not expose the internal workings of the system while providing actionable messages to
+       the user.
+    6. Add a full testing suite using Mocha Test and some sort of tool that can issue HTTP requests
+       (for testing the ExpressJS endpoints when they are available).
 
-       One possible solution would be to store snapshots of the seats used for reservations for every half
-       hour the restaurant is open.  Then, whenever a reservation is made, the relevant snapshots would be
-       updated.  This would make it much easier to check for open seats at a given time and would also
-       allow one to encode more data about the layout of the tables of the restaurant (i.e. number of chairs/
-       table, etc.).  This would require another collection linked to each restaurant in order to store the
-       snapshots of the seats occupied.  The snapshots themselves would simply be javascript objects.  
+       NOTE: Though this assignment is not yet fully functional, I believe that this coding assignment
+             demonstrates the style of my coding in terms of structure and design.  In its current state,
+             it is only a matter of time to have it completely up and running as most of the more 
+             difficult implementation (dbLogic) is functioning.
+
+Set-up and Running What Exists:
+  1. Install NodeJS.
+  2. Install MongoDB.
+  3. Launch mongod.
+  4. Launch mongo (for viewing the results of the labelled tests).
+  5. Launch the Node REPL.
+  6. Enter the following command into the Node REPL: var dbLogic = require("./dbLogic.js");
+  7. Call the test functions in dbLogic using the object dbLogic.
